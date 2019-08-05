@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Random visualised</title>
+    <style id="jsbin-css">
+      * {
+        font-family: sans-serif;
+        box-sizing: border-box;
+        font-size: 18px;
+      }
+
+      html {
+        background: white;
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #controls {
+        margin: 0 auto;
+        width: 80%;
+        border: 2px solid black;
+        position: relative;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 10vh;
+        max-width: 100%;
+        padding: 8px;
+        font-family: 'Andale Mono', monospace;
+        background: rgb(245, 245, 245);
+      }
+
+      input[type="checkbox"]:checked+.question {
+        display: none;
+      }
+
+      .valign {
+        display: inline-flex;
+        align-content: center;
+      }
+
+      button {
+        cursor: pointer;
+        background: black;
+        color: white;
+        border: 3px solid black;
+        padding: 4px 16px;
+      }
+
+      canvas {
+        display: inline-block;
+        background: hotpink;
+        margin: 20px auto;
+        max-width: 100%;
+        width: 640px;
+        /*   border: 2px solid black; */
+      }
+
+      output {
+        display: block;
+        /* column-count: 3; */
+        font-variant: tabular-nums all-petite-caps;
+      }
+
+      #controls>* {
+        position: relative;
+        display: block;
+        margin: 20px;
+        color: #666;
+      }
+
+      .spacer {
+        display: inline-block;
+        width: 20px;
+      }
+
+      @media screen and (min-width: 1200px) {
+        body {
+          flex-direction: row-reverse;
+          justify-content: space-around;
+        }
+
+        canvas,
+        #controls {
+          margin: 20px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas width="640" height="480"></canvas>
+    <div id="controls">
+      <label for="code">Random function (returns 0-1):<br>
+      </label>
+      <label><textarea id="code" autofocus
+          placeholder="export default …">export default () => Math.random()</textarea></label>
+      <p class="label"><button>
+          Run
+        </button>&nbsp;&nbsp;&nbsp;<label class="valign"><input type="checkbox" id="repeat"> repeat<span
+            class="question">?</span></label></p>
+      <label>Sorted samples <span id="total"></span>: <output id="sample">(waiting…)</output></label>
+    </div>
+    <script id="jsbin-javascript" defer>
+      const $ = s => document.querySelector(s);
+      const ta = $('textarea');
+      const repeating = () => $('#repeat').checked;
+
+      $('#repeat').onchange = () => {
+        if (!repeating()) {
+          clearInterval(repeat);
+        }
+      }
+
+      let repeat = null;
+
+      $('button').onclick = render;
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const code = searchParams.get('code');
+
+      if (code) {
+        ta.value = code;
+        ta.style.height = (ta.scrollHeight + 4) + 'px';
+      }
+
+      if (code) {
+        render();
+      }
+
+      function render() {
+        clearInterval(repeat);
+        if (repeating()) {
+          repeat = setInterval(render, 1000);
+        }
+        const code = ta.value;
+        searchParams.set('code', code);
+
+        window.history.replaceState(null, null, `?${searchParams.toString()}`);
+
+        const blob = new Blob([code], {
+          type: 'text/javascript'
+        });
+
+        const url = code.startsWith('https://') ? code.trim() : URL.createObjectURL(blob);
+
+        import(url).then(module => {
+          const ctx = $('canvas').getContext('2d');
+
+          const w = ctx.canvas.width = 640 * 4;
+          const h = ctx.canvas.height = 480 * 4;
+
+          const img = ctx.getImageData(0, 0, w, h);
+
+          const r = module.default;
+          const samples = [];
+
+          let ctr = 0;
+
+          for (let i = 0; i < w * h * 4; i += 4) {
+            ctr++;
+            const offset = r();
+            if (samples.length < 100) {
+              samples.push(offset);
+            }
+            img.data[i] = 255 - (offset * 255);
+            img.data[i + 1] = 255 - (offset * 255);
+            img.data[i + 2] = 255 - (offset * 255);
+            img.data[i + 3] = 255; // solid
+          }
+
+          $('#total').innerHTML = ' from ' + ctr + ' data points';
+          $('#sample').innerHTML = samples.sort((a, b) => a < b ? -1 : 1).map(_ => _.toFixed(4)).join('<span class="spacer"></span>');
+          ctx.putImageData(img, 0, 0);
+        })
+      }
+
+
+    </script>
+  </body>
+
+</html>
